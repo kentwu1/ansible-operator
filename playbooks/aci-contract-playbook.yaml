@@ -1,0 +1,147 @@
+---
+- name: ACI Contract Operator Playbook 
+  connection: local
+  hosts: localhost
+  vars:
+    jsonVar: "{{ lookup('file', '/opt/ansible/aci-containers-config/controller-config') | from_json }}"
+    contractName: '{{ meta.name }}'
+    tenant: "{{ jsonVar['apic-username'] }}"
+    certKey: "{{ jsonVar['apic-private-key-path'] }}"
+    apicHost: "{{ jsonVar['apic-hosts'][0] }}"
+    allowList: '{{ allow_list }}'
+    desiredState: '{{ state }}'
+  tasks:
+  - name: Create/Delete a contract
+    aci_contract:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      description: 'ACI Operator - apiVersion: rmlab.cisco.com/v1alpha2'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: '{{ desiredState }}'
+  - name: Create a subject
+    when: desiredState == 'present'
+    aci_contract_subject:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      subject: 'default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+  - name: Create/Delete a filter
+    aci_filter:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: '{{ desiredState }}'
+  - name: Query entries
+    when: desiredState == 'present'
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    register: query_result
+  - name: Set the default entry list
+    when: desiredState == 'present'
+    set_fact:
+      entryList: []
+  - name: Set the entry list
+    set_fact:
+      entryList: "{{ entryList|default([]) + ['-'.join((item.protocol, item.ports.start|string(), item.ports.end|string()))] }}"
+    with_items: "{{ allowList }}"
+    when: (desiredState == 'present') and (item.ports is defined)
+  - name: Set the entry list for ICMP
+    set_fact:
+      entryList: "{{ entryList|default([]) + ['-'.join((item.protocol, 'unspecified', 'unspecified'))] }}"
+    with_items: "{{ allowList }}"
+    when: (desiredState == 'present') and (item.ports is not defined)
+  - name: Delete extra entries
+    ignore_errors: yes
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      entry: "{{ item.vzEntry.attributes.name }}"
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: absent
+    with_items: "{{ query_result.current[0].vzFilter.children }}"
+    when: (desiredState == 'present') and (query_result.current[0].vzFilter.children is defined) and (item.vzEntry.attributes.name not in entryList)
+  - name: Create entries
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      entry: "{{ '-'.join((item.protocol, item.ports.start|string(), item.ports.end|string())) }}"
+      ether_type: 'ip'
+      ip_protocol: '{{ item.protocol }}'
+      dst_port_start: '{{ item.ports.start }}'
+      dst_port_end: '{{ item.ports.end }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+    with_items: "{{ allowList }}"
+    when: (desiredState == 'present') and (item.ports is defined)
+  - name: Create entries for ICMP which doesn't have ports defined
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      entry: "{{ '-'.join((item.protocol, 'unspecified', 'unspecified')) }}"
+      ether_type: 'ip'
+      ip_protocol: '{{ item.protocol }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+    with_items: "{{ allowList }}"
+    when: (desiredState == 'present') and (item.ports is not defined)
+  - name: Bind the subject to the filter 
+    when: desiredState == 'present'
+    aci_contract_subject_to_filter:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      subject: 'default'
+      filter: '{{ contractName }}-default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present

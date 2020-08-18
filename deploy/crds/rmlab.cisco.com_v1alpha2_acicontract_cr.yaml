@@ -1,0 +1,15 @@
+apiVersion: rmlab.cisco.com/v1alpha2
+kind: AciContract
+metadata:
+  name: example-acicontract
+spec:
+  allow_list:
+    - protocol: tcp
+      ports:
+        start: 6001
+        end: 6010
+    - protocol: udp
+      ports:
+        start: 6002
+        end: 6002
+    - protocol: icmp

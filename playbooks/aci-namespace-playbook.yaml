@@ -1,0 +1,238 @@
+---
+- name: ACI Namespace Operator Playbook 
+  connection: local
+  hosts: localhost
+  vars:
+    jsonVar: "{{ lookup('file', '/opt/ansible/aci-containers-config/controller-config') | from_json }}"
+    user: "{{ jsonVar['apic-username'] }}"
+    tenant: "{{ jsonVar['aci-policy-tenant'] }}"
+    certKey: "{{ jsonVar['apic-private-key-path'] }}"
+    vmProvider: "{{ jsonVar['aci-vmm-type'] | lower }}"
+    vmmDomain: "{{ jsonVar['aci-vmm-domain'] }}"
+    ap: 'aci-containers-{{ tenant }}'
+    bd: 'aci-containers-{{ tenant }}-pod-bd'
+    #bd: "{{ jsonVar['aci-podbd-dn'] }}"
+    apicHosts: "{{ jsonVar['apic-hosts'] }}"
+    apicHost: "{{ apicHosts | random }}"
+    epgName: '{{ meta.name }}'
+    masterEpgs: '{{ epgcontractmasters }}'
+    providedContracts: '{{ providedcontracts }}'
+    consumedContracts: '{{ consumedcontracts }}'
+    desiredState: '{{ state }}'
+  tasks:
+  - name: create EPG
+    aci_epg:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      epg: '{{ epgName }}'
+      description: 'ACI Operator - apiVersion: rmlab.cisco.com/v1alpha2'
+      bd: '{{ bd }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: '{{ desiredState }}'
+  - name: Query all the provided contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: query
+      output_level: info
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract_type: provider
+    register: query_result
+  - debug:
+      msg: 'Provider contract name {{ item.fvRsProv.attributes.tnVzBrCPName }}'
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: query_result.current[0].fvAEPg.children is defined
+  - name: Delete the extra provided contracts to EPG
+    when: (desiredState == 'present') and (query_result.current[0].fvAEPg.children is defined)
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: absent
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract: '{{ item.fvRsProv.attributes.tnVzBrCPName }}'
+      contract_type: provider
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: item.fvRsProv.attributes.tnVzBrCPName not in providedContracts
+  - name: Add provided contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: present
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract: '{{ item }}'
+      contract_type: provider
+    loop: '{{ providedContracts }}'
+  - name: Query all the consumed contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: query
+      output_level: info
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract_type: consumer
+    register: query_result
+  - debug:
+      msg: 'Consumer contract name {{ item.fvRsCons.attributes.tnVzBrCPName }}'
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: query_result.current[0].fvAEPg.children is defined
+  - name: Delete the extra consumed contracts to EPG
+    when: (desiredState == 'present') and (query_result.current[0].fvAEPg.children is defined)
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: absent
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract: '{{ item.fvRsCons.attributes.tnVzBrCPName }}'
+      contract_type: consumer
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: item.fvRsCons.attributes.tnVzBrCPName not in consumedContracts
+  - name: Add consumed contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      epg: '{{ epgName }}'
+      state: present
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract: '{{ item }}'
+      contract_type: consumer
+    loop: '{{ consumedContracts }}'
+  - name: Query Master EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_rest:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      method: get
+      use_ssl: yes
+      validate_certs: no
+      path: /api/node/class/fvRsSecInherited.json
+    register: query_result
+  - debug:
+      msg: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+    with_items: '{{ query_result.imdata }}'
+    when: query_result.imdata is defined
+  - name: Set the default masterEpgPath list
+    set_fact:
+      masterEpgPaths: []
+  - name: Set the masterEpgPath list
+    vars:
+      masterEpgPathPrefix: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}/rssecInherited-[uni/tn-{{ tenant }}/ap-{{ ap }}/epg'
+    set_fact:
+      masterEpgPaths: "{{ masterEpgPaths|default([]) + ['-'.join((masterEpgPathPrefix, item)) + ']'] }}"
+    with_items: "{{ masterEpgs }}"
+  - name: Delete Master EPG
+    when: (desiredState == 'present') and (query_result.imdata is defined)
+    ignore_errors: yes
+    vars:
+      epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
+    aci_rest:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      method: delete
+      use_ssl: yes
+      validate_certs: no
+      path: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+    with_items: '{{ query_result.imdata }}'
+    when: (epgPath in item.fvRsSecInherited.attributes.dn) and (item.fvRsSecInherited.attributes.dn not in masterEpgPaths)
+  - name: Attach Master EPG
+    when: (desiredState == 'present')
+    ignore_errors: yes
+    aci_rest:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      method: post
+      use_ssl: yes
+      validate_certs: no
+      path: /api/node/mo/uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}.json
+      content:
+         {
+          "fvRsSecInherited": {
+            "attributes": {
+              "tDn": "uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ item }}",
+              "status": "created"
+            },
+            "children": []
+          }
+         }
+    loop: '{{ masterEpgs }}'
+  - name: Bind EPG to VMM Domain
+    when: desiredState == 'present'
+    aci_epg_to_domain:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      domain: '{{ tenant }}'
+      domain_type: vmm
+      epg: '{{ epgName }}'
+      state: present
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      vm_provider: '{{ vmProvider }}'
+

@@ -1,0 +1,108 @@
+---
+- name: ACI Contract Operator Playbook 
+  connection: local
+  hosts: localhost
+  vars:
+    jsonVar: "{{ lookup('file', '/opt/ansible/aci-containers-config/controller-config') | from_json }}"
+    contractName: '{{ meta.name }}'
+    tenant: "{{ jsonVar['apic-username'] }}"
+    certKey: "{{ jsonVar['apic-private-key-path'] }}"
+    apicHost: "{{ jsonVar['apic-hosts'][0] }}"
+    allowList: '{{ allow-list }}'
+    ipProtocol: '{{ ipprotocol }}'
+    #destPortStart: '{{ destportstart }}'
+    #destPortEnd: '{{ destportend }}'
+    #portRangeStart: '{{ portranges.start }}'
+    #portRangeEnd: '{{ portranges.end }}'
+    desiredState: '{{ state }}'
+  tasks:
+  - name: Create/Delete a contract
+    aci_contract:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      description: 'ACI Operator - apiVersion: rmlab.cisco.com/v1alpha2'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: '{{ desiredState }}'
+  - name: Create a subject
+    when: desiredState == 'present'
+    aci_contract_subject:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      subject: 'default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+  - name: Create/Delete a filter
+    aci_filter:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: '{{ desiredState }}'
+  - name: Create an entry
+    when: (desiredState == 'present') and (destportstart is defined) and (destportend is defined)
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      entry: 'default'
+      ether_type: '{{ etherType }}'
+      ip_protocol: '{{ ipProtocol }}'
+      dst_port_start: '{{ destportstart }}'
+      dst_port_end: '{{ destportend }}'
+      #dst_port_start: '{{ portRangeStart }}'
+      #dst_port_end: '{{ portRangeEnd }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+  - name: Create an entry
+    when: (desiredState == 'present') and ((destportstart is undefined) or (destportend is undefined))
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      filter: '{{ contractName }}-default'
+      entry: 'default'
+      ether_type: '{{ etherType }}'
+      ip_protocol: '{{ ipProtocol }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+  - name: Bind the subject to the filter 
+    when: desiredState == 'present'
+    aci_contract_subject_to_filter:
+      host: '{{ apicHost }}'
+      cert_key: '{{ certKey }}'
+      certificate_name: '{{ tenant }}.crt'
+      username: '{{ tenant }}'
+      tenant: '{{ tenant }}'
+      contract: '{{ contractName }}'
+      subject: 'default'
+      filter: '{{ contractName }}-default'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present

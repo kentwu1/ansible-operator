@@ -1,0 +1,190 @@
+---
+- name: ACI Namespace Operator Playbook
+  connection: local
+  hosts: localhost
+  vars:
+    epgName: 'acins-1'
+    tenant: "kent_demo"
+    ap: 'aci-containers-{{ tenant }}'
+    apicHost: "10.30.120.180"
+    #masterEpgs: ['aci-containers-default', 'aci-containers-system']
+    masterEpgs: []
+    providedContracts: ["p1", "p2"]
+    consumedContracts: []
+    #allowList: [{"protocol":"tcp", "ports":{"start": "6000", "end": "6000"}},
+    #            {"protocol":"icmp", "ports":{"start": "unspecified", "end": "unspecified"}},
+    #            {"protocol":"udp", "ports":{"start": "6001", "end": "6001"}}]
+    allowList: []
+    desiredState: 'present'
+  tasks:
+  - name: Query all the provided contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      epg: '{{ epgName }}'
+      state: query
+      output_level: info
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract_type: provider
+    register: query_result
+  - debug:
+      msg: 'Provider contract name {{ item.fvRsProv.attributes.tnVzBrCPName }}'
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: query_result.current[0].fvAEPg.children is defined
+  - debug:
+      var: query_result.current[0].fvAEPg.children[0].fvRsProv.attributes.tnVzBrCPName
+  - name: Delete the extra provided contracts to EPG
+    #when: desiredState == 'xxxxx'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      username: 'admin'
+      password: 'noir0123'
+      epg: '{{ epgName }}'
+      state: absent
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract: '{{ item.fvRsProv.attributes.tnVzBrCPName }}'
+      contract_type: provider
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: item.fvRsProv.attributes.tnVzBrCPName not in providedContracts
+    when: (query_result.current[0].fvAEPg.children is defined) and (desiredState == 'xxxxx')
+  - name: Query all the consumed contracts to EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_epg_to_contract:
+      ap: '{{ ap }}'
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      epg: '{{ epgName }}'
+      state: query
+      output_level: info
+      tenant: '{{ tenant }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      contract_type: consumer
+    register: query_result
+  - debug:
+      msg: 'Consumer contract name {{ item.fvRsCons.attributes.tnVzBrCPName }}'
+    with_items: '{{ query_result.current[0].fvAEPg.children }}'
+    when: query_result.current[0].fvAEPg.children is defined
+  - name: Query Master EPG
+    when: desiredState == 'present'
+    ignore_errors: yes
+    aci_rest:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      method: get
+      use_ssl: yes
+      validate_certs: no
+      path: /api/node/class/fvRsSecInherited.json
+    register: query_result
+  - debug:
+      msg: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+    with_items: '{{ query_result.imdata }}'
+    when: query_result.imdata is defined
+  - shell: "echo uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}/rssecInherited-[uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ item }}]"
+    register: "r"
+    with_items: "{{ masterEpgs }}"
+  #- debug:
+  #    msg: '{{ r.results[1].stdout }}]'
+  - name: Set the default list
+    set_fact:
+      foo: []
+  - name: Set the list
+    vars:
+      masterEpgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}/rssecInherited-[uni/tn-{{ tenant }}/ap-{{ ap }}/epg'
+    set_fact:
+      foo: "{{ foo|default([]) + ['-'.join((masterEpgPath, item)) + ']'] }}"
+    with_items: "{{ masterEpgs }}"
+  - debug:
+      msg: "{{ foo }}"
+  - name: Delete Master EPG
+    ignore_errors: yes
+    vars:
+      epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
+    aci_rest:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      method: delete
+      use_ssl: yes
+      validate_certs: no
+      #path: /api/node/mo/uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}/rssecInherited-[uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ masterEpg }}].json
+      path: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+    with_items: '{{ query_result.imdata }}'
+    when: (epgPath in item.fvRsSecInherited.attributes.dn) and (item.fvRsSecInherited.attributes.dn not in foo)
+    #when: (query_result.imdata is defined) and (desiredState == 'present')
+  - name: Query entries
+    when: (desiredState == 'present')
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      filter: 'default1'
+      ether_type: 'ip'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    register: query_result
+  - debug:
+      msg: "{{ query_result.current[0].vzFilter.children[0].vzEntry.attributes.name }}"
+    when: query_result.current[0].vzFilter.children is defined
+  - name: Set the default list
+    set_fact:
+      foo1: []
+  - name: Set the list
+    vars:
+    set_fact:
+      foo1: "{{ foo1|default([]) + ['-'.join((item.protocol, item.ports.start, item.ports.end))] }}"
+    with_items: "{{ allowList }}"
+  - debug:
+      msg: "{{ foo1 }}"
+  - name: Delete extra entries
+    when: (desiredState == 'present') and (query_result.current[0].vzFilter.children is defined)
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      filter: 'default1'
+      entry: "{{ item.vzEntry.attributes.name }}"
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: absent
+    with_items: "{{ query_result.current[0].vzFilter.children }}"
+    when: item.vzEntry.attributes.name not in foo1
+  - name: Create entries
+    when: (desiredState == 'present')
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      filter: 'default1'
+      entry: "{{ '-'.join((item.protocol, item.ports.start, item.ports.end)) }}"
+      ether_type: 'ip'
+      ip_protocol: '{{ item.protocol }}'
+      dst_port_start: '{{ item.ports.start }}'
+      dst_port_end: '{{ item.ports.end }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
+    with_items: "{{ allowList }}"

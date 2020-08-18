@@ -1,0 +1,11 @@
+apiVersion: rmlab.cisco.com/v1alpha2
+kind: AciNamespace
+metadata:
+  name: acins-1
+spec:
+  #epgcontractmasters: ["aci-containers-default", "aci-containers-system"]
+  epgcontractmasters: []
+  #providedcontracts: ["p2"]
+  providedcontracts: []
+  #consumedcontracts: ["c2"]
+  consumedcontracts: []

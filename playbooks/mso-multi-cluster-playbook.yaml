@@ -1,0 +1,488 @@
+---
+- name: ACI Namespace Operator Playbook
+  connection: local
+  hosts: localhost
+  vars:
+    #epgName: 'acins-1'
+    #ap: 'aci-containers-{{ tenant }}'
+    mso_host: "10.66.176.111"
+    user: "admin"
+    passwd: "123Cisco123!"
+    desiredState: 'present'
+    schema: kent_kubefed
+    tenant: NoiroMultiCluster
+  tasks:
+  - name: Query a schema
+    mso_schema:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: query_result
+  - debug:
+      var: query_result.current.displayName
+  - name: Add a tenant
+    mso_tenant:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      tenant:  "{{ tenant }}"
+      display_name: "{{ tenant }}"
+      sites: [STLD_FAB1, STLD_FAB2] # parameterized
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      state: present
+  - name: Add a new template to a schema
+    mso_schema_template:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item }}'
+      tenant: "{{ tenant }}"
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [Common, Fab1, Fab2]
+  - name: Add a new site to a template
+    mso_schema_site:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ item }}'
+      template: Common
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [STLD_FAB1, STLD_FAB2]
+  - name: Add site1 to Fab1
+    mso_schema_site:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: STLD_FAB1
+      template: Fab1 
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add site_2 to Fab2
+    mso_schema_site:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: STLD_FAB2
+      template: Fab2
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add a new VRF to Common template
+    mso_schema_template_vrf:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      vrf: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add ICMP filter entry to Common template
+    mso_schema_template_filter_entry:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      filter: KubeFed
+      entry: ICMP
+      ethertype: ip
+      ip_protocol: icmp
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add KubeApi filter entry to Common template
+    mso_schema_template_filter_entry:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      filter: KubeFed
+      entry: kubeAPI
+      ethertype: ip
+      ip_protocol: tcp
+      destination_from: "6443"
+      destination_to: "6443"
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add KubeFed contract filter to Common template
+    mso_schema_template_contract_filter:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      contract: KubeFed
+      contract_filter_type: both-way
+      filter: KubeFed
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add BDs to Fab1 template
+    mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1 
+      bd: '{{ item }}'
+      # TBD: adding a subnet
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: Common
+        name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c3f1-node-bd, aci-containers-k8s_c4f1-node-bd, aci-containers-k8s_c3f1-pod-bd]
+  - name: Add a BD to Fab2 template
+    mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      bd: aci-containers-k8s_c2f2-node-bd
+      # TBD: adding a subnet
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: Common
+        name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add APs to Fab1 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: '{{ item }}'
+      state: present
+      use_proxy: no  
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c3f1, aci-containers-k8s_c4f1]
+  - name: Add an ANP to Fab2 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      anp: aci-containers-k8s_c2f2
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add an EPG to Fab1 template
+    mso_schema_template_anp_epg:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1      
+      anp: aci-containers-k8s_c3f1
+      epg: aci-containers-nodes
+      bd:
+        template: Fab1
+        name: aci-containers-k8s_c3f1-node-bd
+      #vrf:
+      #  template: Common      
+      #  name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add an EPG to Fab1 template
+    mso_schema_template_anp_epg:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: aci-containers-k8s_c3f1
+      epg: kubefed
+      bd:
+        template: Fab1
+        name: aci-containers-k8s_c3f1-pod-bd
+      #vrf:
+      #  template: Common
+      #  name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add an EPG to Fab1 template
+    mso_schema_template_anp_epg:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: aci-containers-k8s_c4f1
+      epg: aci-containers-nodes
+      bd:
+        template: Fab1
+        name: aci-containers-k8s_c4f1-node-bd
+      #vrf:
+      #  template: Common
+      #  name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add an EPG to Fab2 template
+    mso_schema_template_anp_epg:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      anp: aci-containers-k8s_c2f2
+      epg: aci-containers-nodes
+      bd:
+        template: Fab2
+        name: aci-containers-k8s_c2f2-node-bd
+      #vrf:
+      #  template: Common
+      #  name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add a L3out to Fab1 and Fab2 template
+    mso_schema_template_l3out:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item }}' 
+      l3out: l3out
+      vrf:
+        template: Common
+        name: K8S
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [Fab1, Fab2]
+  - name: Add site BDs for Fab1
+    mso_schema_site_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      site: STLD_FAB1
+      bd: '{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c3f1-node-bd, aci-containers-k8s_c4f1-node-bd, aci-containers-k8s_c3f1-pod-bd]
+  - name: Add site BD for Fab2
+    mso_schema_site_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      site: STLD_FAB2
+      bd: '{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c2f2-node-bd]
+  - name: Add a new site BD subnet for Fab1
+    mso_schema_site_bd_subnet:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      site: STLD_FAB1
+      bd: aci-containers-k8s_c3f1-node-bd
+      subnet: 10.113.0.1/16
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add a new site BD subnet for Fab1
+    mso_schema_site_bd_subnet:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      site: STLD_FAB1
+      bd: aci-containers-k8s_c3f1-pod-bd
+      subnet: 10.114.0.1/16
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add a new site BD subnet for Fab1
+    mso_schema_site_bd_subnet:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      site: STLD_FAB1
+      bd: aci-containers-k8s_c4f1-node-bd
+      subnet: 10.119.0.1/16
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add a new site BD subnet for Fab2
+    mso_schema_site_bd_subnet:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      site: STLD_FAB2
+      bd: aci-containers-k8s_c2f2-node-bd
+      subnet: 10.207.0.1/16
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add site BDs l3out for Fab1
+    mso_schema_site_bd_l3out:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      l3out: l3out
+      site: STLD_FAB1
+      bd: '{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c3f1-node-bd, aci-containers-k8s_c4f1-node-bd, aci-containers-k8s_c3f1-pod-bd]
+  - name: Add site BDs l3out for Fab2
+    mso_schema_site_bd_l3out:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      l3out: l3out
+      site: STLD_FAB2
+      bd: '{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-k8s_c2f2-node-bd]
+  - name: Add provider contract to 1 EPG in Fab1
+    mso_schema_template_anp_epg_contract:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: aci-containers-k8s_c4f1
+      epg: aci-containers-nodes
+      contract:
+        schema: "{{ schema }}"
+        template: Common
+        name: KubeFed
+        type: provider
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add provider contract to 1 EPG in Fab2
+    mso_schema_template_anp_epg_contract:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab2
+      anp: aci-containers-k8s_c2f2
+      epg: aci-containers-nodes
+      contract:
+        schema: "{{ schema }}"
+        template: Common
+        name: KubeFed
+        type: provider
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add consumer contract to 2 EPG in Fab1
+    mso_schema_template_anp_epg_contract:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: aci-containers-k8s_c3f1
+      epg: '{{ item }}' 
+      contract:
+        schema: "{{ schema }}"
+        template: Common
+        name: KubeFed
+        type: consumer
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-nodes, kubefed]
+  - name: Deploy schema templates
+    mso_schema_template_deploy:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item }}'
+      state: deploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [Common, Fab1, Fab2]

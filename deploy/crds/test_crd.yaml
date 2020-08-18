@@ -1,0 +1,36 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kents.rmlab.cisco.com
+spec:
+  group: rmlab.cisco.com
+  names:
+    kind: Kent
+    listKind: KentList
+    plural: kents
+    singular: kent
+  scope: Cluster
+  versions:
+  - name: v1alpha2
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            required:
+             - kentport
+            properties:
+              kentport:
+                type: integer
+                minimum: 0
+                maximum: 65535
+    subresources:
+      status: {}            
+    additionalPrinterColumns:
+      - name: KENT_PORT 
+        type: string
+        description: The ether_type of the entry created
+        jsonPath: .spec.kentport

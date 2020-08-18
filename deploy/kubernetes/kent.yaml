@@ -1,0 +1,36 @@
+apiVersion: rmlab.cisco.com/v1alpha2
+kind: AciContract
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"rmlab.cisco.com/v1alpha2","kind":"AciContract","metadata":{"annotations":{},"name":"example-acicontract"},"spec":{"arpflag":"unspecified","destportend":35,"destportstart":15,"ethertype":"ip","ipprotocol":"tcp","portranges":{"end":6000,"start":6000}}}
+  creationTimestamp: "2020-07-02T18:15:04Z"
+  finalizers:
+  - finalizer.aci-contract.rmlab.cisco.com
+  generation: 1
+  name: example-acicontract
+  resourceVersion: "13142437"
+  selfLink: /apis/rmlab.cisco.com/v1alpha2/acicontracts/example-acicontract
+  uid: 23374804-c3e5-4d15-a02b-cc04b9276632
+spec:
+  arpflag: unspecified
+  destportend: 35
+  destportstart: 15
+  ethertype: ip
+  ipprotocol: tcp
+  portranges:
+    end: 6000
+    start: 6000
+status:
+  conditions:
+  - ansibleResult:
+      changed: 0
+      completion: 2020-07-02T18:28:36.49125
+      failures: 0
+      ok: 6
+      skipped: 0
+    lastTransitionTime: "2020-07-02T18:15:04Z"
+    message: Awaiting next reconciliation
+    reason: Successful
+    status: "True"
+    type: Running
