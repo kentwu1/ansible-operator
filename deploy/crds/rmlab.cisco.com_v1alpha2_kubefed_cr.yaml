@@ -1,0 +1,39 @@
+apiVersion: rmlab.cisco.com/v1alpha2
+kind: KubeFed
+metadata:
+  name: example-kubefed
+  namespace: aci-containers-system
+spec:
+  tenant: NoiroMultiCluster
+  controller_cluster:
+    system_id: k8s_c3f1
+    site: STLD_FAB1
+    l3out:
+      tenant: NoiroMultiCluster
+      name: l3out
+    vrf:
+      tenant: NoiroMultiCluster
+      name: K8S
+    node_BD_subnet: 10.113.0.1/16
+    pod_BD_subnet: 10.114.0.1/16
+    kubefed_EPG: kubefed
+  worker_clusters:
+    - system_id: k8s_c4f1
+      site: STLD_FAB1
+      l3out:
+        tenant: NoiroMultiCluster
+        name: l3out
+      vrf:
+        tenant: NoiroMultiCluster
+        name: K8S
+      node_BD_subnet: 10.119.0.1/16
+    - system_id: k8s_c2f2
+      site: STLD_FAB2
+      l3out:
+        tenant: NoiroMultiCluster
+        name: l3out
+      vrf:
+        tenant: NoiroMultiCluster
+        name: K8S
+      node_BD_subnet: 10.207.0.1/16
+

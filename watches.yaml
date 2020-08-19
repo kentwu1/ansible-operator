@@ -24,3 +24,16 @@
       name: finalizer.aci-contract.rmlab.cisco.com
       vars:
         state: absent
+
+  - version: v1alpha2
+    group: rmlab.cisco.com
+    kind: KubeFed
+    playbook: /opt/ansible/playbooks/mso-kubefed-playbook.yaml
+    reconcilePeriod: 10s
+    vars:
+      state: present
+    finalizer:
+      name: finalizer.mso-kubefed.rmlab.cisco.com
+      vars:
+        state: absent
+
