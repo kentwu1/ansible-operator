@@ -4,7 +4,7 @@ metadata:
   name: example-kubefed
   namespace: aci-containers-system
 spec:
-  tenant: NoiroMultiCluster
+  tenant: NoiroMultiCluster1
   controller_cluster:
     system_id: k8s_c3f1
     site: STLD_FAB1

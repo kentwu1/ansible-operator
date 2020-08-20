@@ -51,6 +51,8 @@ spec:
             name: aci-user-cert-volume
           - name: aci-containers-config-volume
             mountPath: /opt/ansible/aci-containers-config/
+          - name: mso-access-volume
+            mountPath: /opt/ansible/mso-access/
           env:
             - name: WATCH_NAMESPACE
               value: ""
@@ -70,3 +72,7 @@ spec:
           secret:
             defaultMode: 420
             secretName: aci-user-cert
+        - name: mso-access-volume
+          secret:
+            defaultMode: 420
+            secretName: mso-access

@@ -1,35 +1,9 @@
 ---
   - version: v1alpha2
     group: rmlab.cisco.com
-    kind: AciNamespace
-    playbook: /opt/ansible/playbooks/aci-namespace-playbook.yaml
-    reconcilePeriod: 10s
-    watchClusterScopedResources: True
-    vars:
-      state: present
-    finalizer:
-      name: finalizer.aci-namespace.rmlab.cisco.com
-      vars:
-        state: absent
-
-  - version: v1alpha2
-    group: rmlab.cisco.com
-    kind: AciContract
-    playbook: /opt/ansible/playbooks/aci-contract-playbook.yaml
-    reconcilePeriod: 10s
-    watchClusterScopedResources: True
-    vars:
-      state: present
-    finalizer:
-      name: finalizer.aci-contract.rmlab.cisco.com
-      vars:
-        state: absent
-
-  - version: v1alpha2
-    group: rmlab.cisco.com
     kind: KubeFed
     playbook: /opt/ansible/playbooks/mso-kubefed-playbook.yaml
-    reconcilePeriod: 10s
+    reconcilePeriod: 3s
     vars:
       state: present
     finalizer:

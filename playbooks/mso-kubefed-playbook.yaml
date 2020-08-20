@@ -1,0 +1,51 @@
+---
+- name: MSO KubeFed Operator Playbook 
+  connection: local
+  hosts: localhost
+  vars:
+    host: "10.66.176.111"
+    user: "admin"
+    passwd: "123Cisco123!"
+    #host: "{{ lookup('file', '/opt/ansible/mso-access/host') }}"
+    #user: "{{ lookup('file', '/opt/ansible/mso-access/username') }}"
+    #passwd: "{{ lookup('file', '/opt/ansible/mso-access/password') }}"
+    schema_name: '{{ meta.name }}'
+    desired_state: '{{ state }}'
+  tasks:
+  - debug:
+      msg: "host1: {{ host }}, user: {{ user }}, pass: {{ passwd }}"
+  - name: Set the default site_list
+    when: desired_state == 'present'
+    set_fact:
+      site_list: ["{{ controller_cluster.site }}"]
+  - name: Set the site list
+    set_fact:
+      site_list: "{{ site_list + [item.site] }}"
+    with_items: "{{ worker_clusters }}"
+    when: (desired_state == 'present') and (item.site is defined)
+  - debug:
+      msg: "sites: {{ site_list }}"
+  - name: Add a tenant
+    mso_tenant:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      tenant:  "{{ tenant }}"
+      display_name: "{{ tenant }}"
+      sites: [STLD_FAB1, STLD_FAB2] # parameterized
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      state: present
+  - name: Add a tenant
+    mso_tenant:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      tenant:  "{{ tenant }}"
+      display_name: "{{ tenant }}"
+      sites: "{{ site_list }}"
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      state: '{{ desired_state }}'
