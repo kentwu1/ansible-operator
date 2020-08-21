@@ -3,17 +3,15 @@
   connection: local
   hosts: localhost
   vars:
-    host: "10.66.176.111"
-    user: "admin"
-    passwd: "123Cisco123!"
-    #host: "{{ lookup('file', '/opt/ansible/mso-access/host') }}"
-    #user: "{{ lookup('file', '/opt/ansible/mso-access/username') }}"
-    #passwd: "{{ lookup('file', '/opt/ansible/mso-access/password') }}"
-    schema_name: '{{ meta.name }}'
-    desired_state: '{{ state }}'
+    host: "{{ lookup('file', '/opt/ansible/mso-access/host') }}"
+    user: "{{ lookup('file', '/opt/ansible/mso-access/username') }}"
+    passwd: "{{ lookup('file', '/opt/ansible/mso-access/password') }}"
+    schema: "mso_ansible_operator_{{ meta.name }}"
+    desired_state: "{{ state }}"
+  # TBD: Take care of the delete case
   tasks:
   - debug:
-      msg: "host1: {{ host }}, user: {{ user }}, pass: {{ passwd }}"
+      msg: "host: {{ host }}, user: {{ user }}, pass: {{ passwd }}, tenant: {{ tenant }}"
   - name: Set the default site_list
     when: desired_state == 'present'
     set_fact:
@@ -22,22 +20,10 @@
     set_fact:
       site_list: "{{ site_list + [item.site] }}"
     with_items: "{{ worker_clusters }}"
-    when: (desired_state == 'present') and (item.site is defined)
+    when: (desired_state == 'present') and (item.site is defined) and (item.site not in site_list)
   - debug:
       msg: "sites: {{ site_list }}"
-  - name: Add a tenant
-    mso_tenant:
-      host: "{{ host }}"
-      username: "{{ user }}"
-      password: "{{ passwd }}"
-      tenant:  "{{ tenant }}"
-      display_name: "{{ tenant }}"
-      sites: [STLD_FAB1, STLD_FAB2] # parameterized
-      use_proxy: no
-      use_ssl: yes
-      validate_certs: no
-      state: present
-  - name: Add a tenant
+  - name: Add the tenant
     mso_tenant:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -48,4 +34,103 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
+      #state: '{{ desired_state }}'
+      state: query
+  - name: Add the common tenant
+    mso_tenant:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      tenant:  common
+      display_name: common
+      sites: "{{ site_list }}"
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+      state: query
+      #state: '{{ desired_state }}'
+  - name: Add the Common template to the schema
+    mso_schema_template:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      tenant: "{{ tenant }}"
       state: '{{ desired_state }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add all the sites to the Common template
+    mso_schema_site:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ item }}'
+      template: Common
+      state: '{{ desired_state }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: "{{ site_list }}"
+  - name: Add the ICMP filter entry to the Common template
+    mso_schema_template_filter_entry:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      filter: KubeFed
+      entry: ICMP
+      ethertype: ip
+      ip_protocol: icmp
+      state: '{{ desired_state }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add the KubeApi filter entries to the Common template
+    mso_schema_template_filter_entry:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      filter: KubeFed
+      entry: "kubeAPI-{{ item }}"
+      ethertype: ip
+      ip_protocol: tcp
+      destination_from: "{{ item }}"
+      destination_to: "{{ item }}"
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: ["6443", "8443"]
+  - name: Add KubeFed contract filter to the Common template
+    mso_schema_template_contract_filter:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      contract: KubeFed
+      contract_filter_type: both-way
+      filter: KubeFed
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add the controller template to the schema
+    mso_schema_template:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      tenant: "{{ item }}"
+      state: '{{ desired_state }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
