@@ -8,10 +8,14 @@
     passwd: "{{ lookup('file', '/opt/ansible/mso-access/password') }}"
     schema: "mso_ansible_operator_{{ meta.name }}"
     desired_state: "{{ state }}"
-  # TBD: Take care of the delete case
+  # TBD: Take care of the delete & update case
   tasks:
   - debug:
       msg: "host: {{ host }}, user: {{ user }}, pass: {{ passwd }}, tenant: {{ tenant }}"
+  - debug:
+      var: controller_cluster
+  - debug:
+      var: worker_clusters
   - name: Set the default site_list
     when: desired_state == 'present'
     set_fact:
@@ -121,7 +125,7 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-  - name: Add the controller template to the schema
+  - name: Add the controller templates to the schema
     mso_schema_template:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -134,3 +138,49 @@
       use_ssl: yes
       validate_certs: no
     loop: [ "{{ tenant }}", common]
+  - name: Add the site to the controller templates
+    mso_schema_site:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ controller_cluster.site }}'
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
+  - name: Add the VRF to the right controller template
+    mso_schema_template_vrf:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      vrf: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
+    when: controller_cluster.vrf.tenant == item
+  # TBD: fix the l_3_out variable bug?
+  - name: Add the l3out to the right controller template
+    mso_schema_template_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      l3out: '{{ controller_cluster.l_3_out.name }}'
+      vrf:
+        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
+        name: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
+    when: controller_cluster.l_3_out.tenant == item
+

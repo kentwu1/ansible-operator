@@ -4,7 +4,7 @@ metadata:
   name: example-kubefed
   namespace: aci-containers-system
 spec:
-  tenant: NoiroMultiCluster1
+  tenant: NoiroMultiCluster
   controller_cluster:
     system_id: k8s_c3f1
     site: STLD_FAB1
@@ -12,7 +12,7 @@ spec:
       tenant: NoiroMultiCluster
       name: l3out
     vrf:
-      tenant: NoiroMultiCluster
+      tenant: common
       name: K8S
     node_BD_subnet: 10.113.0.1/16
     pod_BD_subnet: 10.114.0.1/16
