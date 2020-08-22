@@ -183,4 +183,64 @@
       validate_certs: no
     loop: [ "{{ tenant }}", common]
     when: controller_cluster.l_3_out.tenant == item
-
+  - name: Add BDs to controller template
+    mso_schema_template_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
+        name: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [node-bd, pod-bd]
+  - name: Add AP to the controller template
+    mso_schema_template_anp:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ controller_cluster.system_id }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add the node EPG to the controller template
+    mso_schema_template_anp_epg:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ controller_cluster.system_id }}'
+      epg: aci-containers-nodes
+      bd:
+        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+        name: 'aci-containers-{{ controller_cluster.system_id }}-node-bd'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add the kubefed EPG to the controller template
+    mso_schema_template_anp_epg:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ controller_cluster.system_id }}'
+      epg: '{{ controller_cluster.kubefed_epg }}'
+      bd:
+        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+        name: 'aci-containers-{{ controller_cluster.system_id }}-pod-bd'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
