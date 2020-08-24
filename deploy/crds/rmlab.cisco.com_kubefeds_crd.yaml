@@ -33,9 +33,11 @@ spec:
                   type: string
                 site:
                   type: string
-                node_BD_subnet:
+                node_bd_subnet:
                   type: string
-                pod_Bd_subnet:
+                pod_bd_subnet:
+                  type: string
+                kubefed_epg:
                   type: string
                 l3out:
                   type: object
@@ -60,7 +62,7 @@ spec:
                     type: string
                   site:
                     type: string
-                  node_BD_subnet:
+                  node_bd_subnet:
                     type: string
                   l3out:
                     type: object

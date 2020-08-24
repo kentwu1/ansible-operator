@@ -183,7 +183,7 @@
       validate_certs: no
     loop: [ "{{ tenant }}", common]
     when: controller_cluster.l_3_out.tenant == item
-  - name: Add BDs to controller template
+  - name: Add BDs to the controller template
     mso_schema_template_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -195,6 +195,67 @@
       vrf:
         template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
         name: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [node-bd, pod-bd]
+  - name: Add site BDs to the controller template
+    mso_schema_site_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      site: '{{ controller_cluster.site }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [node-bd, pod-bd]
+  - name: Add site node BD subnet to the controller template
+    mso_schema_site_bd_subnet:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      site: '{{ controller_cluster.site }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-node-bd'
+      subnet: '{{ controller_cluster.node_bd_subnet }}'
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add site pod BD subnet to the controller template
+    mso_schema_site_bd_subnet:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      site: '{{ controller_cluster.site }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-pod-bd'
+      subnet: '{{ controller_cluster.pod_bd_subnet }}'
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add site BD l3outs to the controller template
+    mso_schema_site_bd_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      l3out: '{{ controller_cluster.l_3_out.name }}'
+      site: '{{ controller_cluster.site }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
       state: present
       use_proxy: no
       use_ssl: yes
@@ -244,3 +305,202 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
+  # Deploy policies for worker clusters
+  - name: Add the worker templates to the schema
+    mso_schema_template:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      tenant: "{{ item[0] }}"
+      state: '{{ desired_state }}'
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+  - name: Add the site to the worker templates
+    mso_schema_site:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ item[1].site }}'
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+  - name: Add the VRF to the right worker templates
+    mso_schema_template_vrf:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      vrf: '{{ item[1].vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+    when: item[1].vrf.tenant == item[0]
+  # TBD: fix the l_3_out variable bug?
+  - name: Add the l3out to the right worker templates
+    mso_schema_template_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      l3out: '{{ item[1].l_3_out.name }}'
+      vrf:
+        template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[1].vrf.tenant }}'
+        name: '{{ item[1].vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+    when: item[1].l_3_out.tenant == item[0]
+  - name: Add BDs to the worker templates
+    mso_schema_template_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: '{{ item.system_id }}-{{ item.site }}-{{ item.vrf.tenant }}'
+        name: '{{ item.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  - name: Add site BDs to the worker templates
+    mso_schema_site_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      site: '{{ item.site }}'
+      bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  - name: Add site node BD subnet to the worker templates
+    mso_schema_site_bd_subnet:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      site: '{{ item.site }}'
+      bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      subnet: '{{ item.node_bd_subnet }}'
+      scope: public
+      shared: no
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  - name: Add site BD l3outs to the worker templates
+    mso_schema_site_bd_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      l3out: '{{ item.l_3_out.name }}'
+      site: '{{ item.site }}'
+      bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  - name: Add AP to the worker templates
+    mso_schema_template_anp:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ item.system_id }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  - name: Add the node EPG to the worker templates
+    mso_schema_template_anp_epg:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ item.system_id }}'
+      epg: aci-containers-nodes
+      bd:
+        template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+        name: 'aci-containers-{{ item.system_id }}-node-bd'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+  # Assign the kubefed contract to the EPGs
+  - name: Add the consumer contract to the 2 EPGs in the controller cluster
+    mso_schema_template_anp_epg_contract:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ controller_cluster.system_id }}'
+      epg: '{{ item }}'
+      contract:
+        schema: "{{ schema }}"
+        template: Common
+        name: KubeFed
+        type: consumer
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [aci-containers-nodes, '{{ controller_cluster.kubefed_epg }}']
+  - name: Add the provider contract to the EPG of those workers
+    mso_schema_template_anp_epg_contract:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      anp: 'aci-containers-{{ item.system_id }}'
+      epg: aci-containers-nodes
+      contract:
+        schema: "{{ schema }}"
+        template: Common
+        name: KubeFed
+        type: provider
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
