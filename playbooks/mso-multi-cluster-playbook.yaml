@@ -153,7 +153,7 @@
       schema: "{{ schema }}"
       template: Fab1 
       bd: '{{ item }}'
-      # TBD: adding a subnet
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: Common
@@ -171,7 +171,7 @@
       schema: "{{ schema }}"
       template: Fab2
       bd: aci-containers-k8s_c2f2-node-bd
-      # TBD: adding a subnet
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: Common

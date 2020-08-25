@@ -191,6 +191,7 @@
       schema: "{{ schema }}"
       template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
@@ -380,6 +381,7 @@
       schema: "{{ schema }}"
       template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
       bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: '{{ item.system_id }}-{{ item.site }}-{{ item.vrf.tenant }}'

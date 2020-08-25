@@ -191,7 +191,7 @@
       schema: "{{ schema }}"
       template: Fab1 
       bd: bd1
-      # TBD: adding a subnet
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: Common
@@ -208,7 +208,7 @@
       schema: "{{ schema }}"
       template: Fab2
       bd: bd2
-      # TBD: adding a subnet
+      layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
         template: Common
