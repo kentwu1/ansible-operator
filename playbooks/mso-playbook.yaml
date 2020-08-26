@@ -440,6 +440,32 @@
       use_ssl: yes
       validate_certs: no
     loop: [Common, Fab2]
+  - name: Remove site1 from templates
+    mso_schema_site:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item }}'
+      site: STLD_FAB1
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [Common, Fab1]
+  - name: Remove site2 from templates
+    mso_schema_site:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item }}'
+      site: STLD_FAB2
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [Common, Fab2]
   - name: Remove a template in a schema
     mso_schema_template:
       host: "{{ mso_host }}"
@@ -452,7 +478,7 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [Common, Fab1, Fab2]
+    loop: [Fab1, Fab2, Common]
   - name: Remove a schema
     mso_schema:
       host: "{{ mso_host }}"
