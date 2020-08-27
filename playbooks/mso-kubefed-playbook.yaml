@@ -28,7 +28,7 @@
   - debug:
       msg: "sites: {{ site_list }}"
   - name: Add the tenant
-    mso_tenant:
+    cisco.mso.mso_tenant:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
@@ -38,10 +38,9 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-      #state: '{{ desired_state }}'
-      state: query
+      state: '{{ desired_state }}'
   - name: Add the common tenant
-    mso_tenant:
+    cisco.mso.mso_tenant:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
@@ -51,8 +50,7 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-      state: query
-      #state: '{{ desired_state }}'
+      state: '{{ desired_state }}'
   - name: Add the Common template to the schema
     mso_schema_template:
       host: "{{ host }}"
