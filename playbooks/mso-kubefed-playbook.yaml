@@ -50,12 +50,12 @@
       password: "{{ passwd }}"
       schema: "{{ schema }}"
       site: '{{ controller_cluster.site }}'
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       state: undeploy
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: ["{{ tenant }}", common]
   - name: Undeploy the worker templates
     when: desired_state == 'absent'
     ignore_errors: yes
@@ -65,7 +65,7 @@
       password: "{{ passwd }}"
       schema: "{{ schema }}"
       site: '{{ item[1].site }}'
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       state: undeploy
       use_proxy: no
       use_ssl: yes
@@ -195,13 +195,13 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       tenant: "{{ item }}"
       state: '{{ desired_state }}'
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: ["{{ tenant }}", common]
   - name: Add the site to the controller templates
     when: desired_state == 'present'
     mso_schema_site:
@@ -210,25 +210,25 @@
       password: "{{ passwd }}"
       schema: "{{ schema }}"
       site: '{{ controller_cluster.site }}'
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       state: present
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: ["{{ tenant }}", common]
   - name: Add the VRF to the right controller template
     mso_schema_template_vrf:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       vrf: '{{ controller_cluster.vrf.name }}'
       state: present
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: ["{{ tenant }}", common]
     when: (desired_state == 'present') and (controller_cluster.vrf.tenant == item)
   # TBD: fix the l_3_out variable bug?
   - name: Add the l3out to the right controller template
@@ -237,16 +237,16 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       l3out: '{{ controller_cluster.l_3_out.name }}'
       vrf:
-        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
+        template: '{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
         name: '{{ controller_cluster.vrf.name }}'
       state: present
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: ["{{ tenant }}", common]
     when: (desired_state == 'present') and (controller_cluster.l_3_out.tenant == item)
   - name: Add BDs to the controller template
     when: desired_state == 'present'
@@ -255,12 +255,12 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
       layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
-        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
+        template: '{{ controller_cluster.site }}-{{ controller_cluster.vrf.tenant }}'
         name: '{{ controller_cluster.vrf.name }}'
       state: present
       use_proxy: no
@@ -274,7 +274,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       site: '{{ controller_cluster.site }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
       state: present
@@ -289,7 +289,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       site: '{{ controller_cluster.site }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-node-bd'
       subnet: '{{ controller_cluster.node_bd_subnet }}'
@@ -306,7 +306,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       site: '{{ controller_cluster.site }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-pod-bd'
       subnet: '{{ controller_cluster.pod_bd_subnet }}'
@@ -323,7 +323,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       l3out: '{{ controller_cluster.l_3_out.name }}'
       site: '{{ controller_cluster.site }}'
       bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
@@ -339,7 +339,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ controller_cluster.system_id }}'
       state: present
       use_proxy: no
@@ -352,11 +352,11 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ controller_cluster.system_id }}'
       epg: aci-containers-nodes
       bd:
-        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+        template: '{{ controller_cluster.site }}-{{ tenant }}'
         name: 'aci-containers-{{ controller_cluster.system_id }}-node-bd'
       state: present
       use_proxy: no
@@ -369,17 +369,17 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ controller_cluster.system_id }}'
       epg: '{{ controller_cluster.kubefed_epg }}'
       bd:
-        template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+        template: '{{ controller_cluster.site }}-{{ tenant }}'
         name: 'aci-containers-{{ controller_cluster.system_id }}-pod-bd'
       state: present
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-  # Deploy policies for worker clusters
+  # Configure policies for worker clusters
   - name: Add the worker templates to the schema
     when: desired_state == 'present'
     mso_schema_template:
@@ -387,7 +387,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       tenant: "{{ item[0] }}"
       state: '{{ desired_state }}'
       use_proxy: no
@@ -404,7 +404,7 @@
       password: "{{ passwd }}"
       schema: "{{ schema }}"
       site: '{{ item[1].site }}'
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       state: present
       use_proxy: no
       use_ssl: yes
@@ -418,7 +418,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       vrf: '{{ item[1].vrf.name }}'
       state: present
       use_proxy: no
@@ -435,10 +435,10 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       l3out: '{{ item[1].l_3_out.name }}'
       vrf:
-        template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[1].vrf.tenant }}'
+        template: '{{ item[1].site }}-{{ item[1].vrf.tenant }}'
         name: '{{ item[1].vrf.name }}'
       state: present
       use_proxy: no
@@ -455,12 +455,12 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       bd: 'aci-containers-{{ item.system_id }}-node-bd'
       layer2_stretch: false
       layer2_unknown_unicast: proxy
       vrf:
-        template: '{{ item.system_id }}-{{ item.site }}-{{ item.vrf.tenant }}'
+        template: '{{ item.site }}-{{ item.vrf.tenant }}'
         name: '{{ item.vrf.name }}'
       state: present
       use_proxy: no
@@ -474,7 +474,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       site: '{{ item.site }}'
       bd: 'aci-containers-{{ item.system_id }}-node-bd'
       state: present
@@ -489,7 +489,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       site: '{{ item.site }}'
       bd: 'aci-containers-{{ item.system_id }}-node-bd'
       subnet: '{{ item.node_bd_subnet }}'
@@ -507,7 +507,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       l3out: '{{ item.l_3_out.name }}'
       site: '{{ item.site }}'
       bd: 'aci-containers-{{ item.system_id }}-node-bd'
@@ -523,7 +523,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ item.system_id }}'
       state: present
       use_proxy: no
@@ -537,11 +537,11 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ item.system_id }}'
       epg: aci-containers-nodes
       bd:
-        template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+        template: '{{ item.site }}-{{ tenant }}'
         name: 'aci-containers-{{ item.system_id }}-node-bd'
       state: present
       use_proxy: no
@@ -556,7 +556,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ tenant }}'
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ controller_cluster.system_id }}'
       epg: '{{ item }}'
       contract:
@@ -576,7 +576,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item.system_id }}-{{ item.site }}-{{ tenant }}'
+      template: '{{ item.site }}-{{ tenant }}'
       anp: 'aci-containers-{{ item.system_id }}'
       epg: aci-containers-nodes
       contract:
@@ -608,25 +608,24 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      template: '{{ controller_cluster.site }}-{{ item }}'
       state: deploy
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: [ "{{ tenant }}", common]
+    loop: [common, "{{ tenant }}"]
   - name: Deploy the worker templates
     when: desired_state == 'present'
-    ignore_errors: yes
     mso_schema_template_deploy:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      template: '{{ item[1].site }}-{{ item[0] }}'
       state: deploy
       use_proxy: no
       use_ssl: yes
       validate_certs: no
     with_nested:
-    - ["{{ tenant }}", common]
+    - [common, "{{ tenant }}"]
     - '{{ worker_clusters }}'
