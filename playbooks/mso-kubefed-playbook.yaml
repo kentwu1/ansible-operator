@@ -17,17 +17,76 @@
   - debug:
       var: worker_clusters
   - name: Set the default site_list
-    when: desired_state == 'present'
     set_fact:
       site_list: ["{{ controller_cluster.site }}"]
   - name: Set the site list
     set_fact:
       site_list: "{{ site_list + [item.site] }}"
     with_items: "{{ worker_clusters }}"
-    when: (desired_state == 'present') and (item.site is defined) and (item.site not in site_list)
+    when: (item.site is defined) and (item.site not in site_list)
   - debug:
       msg: "sites: {{ site_list }}"
-  - name: Add the tenant
+  - name: Undeploy the Common template on all the sites
+    when: desired_state == 'absent'
+    ignore_errors: yes
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      site: '{{ item }}'
+      state: undeploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: "{{ site_list }}"
+  - name: Undeploy the controller templates
+    when: desired_state == 'absent'
+    ignore_errors: yes
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ controller_cluster.site }}'
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      state: undeploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
+  - name: Undeploy the worker templates
+    when: desired_state == 'absent'
+    ignore_errors: yes
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      site: '{{ item[1].site }}'
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      state: undeploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+  - name: Delete the schema
+    when: desired_state == 'absent'
+    ignore_errors: yes
+    mso_schema:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Add/Delete the tenant
+    ignore_errors: yes
     cisco.mso.mso_tenant:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -39,7 +98,8 @@
       use_ssl: yes
       validate_certs: no
       state: '{{ desired_state }}'
-  - name: Add the common tenant
+  - name: Add/Delete the common tenant
+    ignore_errors: yes
     cisco.mso.mso_tenant:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -52,6 +112,7 @@
       validate_certs: no
       state: '{{ desired_state }}'
   - name: Add the Common template to the schema
+    when: desired_state == 'present'
     mso_schema_template:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -64,6 +125,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add all the sites to the Common template
+    when: desired_state == 'present'
     mso_schema_site:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -77,6 +139,7 @@
       validate_certs: no
     loop: "{{ site_list }}"
   - name: Add the ICMP filter entry to the Common template
+    when: desired_state == 'present'
     mso_schema_template_filter_entry:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -92,6 +155,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add the KubeApi filter entries to the Common template
+    when: desired_state == 'present'
     mso_schema_template_filter_entry:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -110,6 +174,7 @@
       validate_certs: no
     loop: ["6443", "8443"]
   - name: Add KubeFed contract filter to the Common template
+    when: desired_state == 'present'
     mso_schema_template_contract_filter:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -124,6 +189,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add the controller templates to the schema
+    when: desired_state == 'present'
     mso_schema_template:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -137,6 +203,7 @@
       validate_certs: no
     loop: [ "{{ tenant }}", common]
   - name: Add the site to the controller templates
+    when: desired_state == 'present'
     mso_schema_site:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -162,7 +229,7 @@
       use_ssl: yes
       validate_certs: no
     loop: [ "{{ tenant }}", common]
-    when: controller_cluster.vrf.tenant == item
+    when: (desired_state == 'present') and (controller_cluster.vrf.tenant == item)
   # TBD: fix the l_3_out variable bug?
   - name: Add the l3out to the right controller template
     mso_schema_template_l3out:
@@ -180,8 +247,9 @@
       use_ssl: yes
       validate_certs: no
     loop: [ "{{ tenant }}", common]
-    when: controller_cluster.l_3_out.tenant == item
+    when: (desired_state == 'present') and (controller_cluster.l_3_out.tenant == item)
   - name: Add BDs to the controller template
+    when: desired_state == 'present'
     mso_schema_template_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -200,6 +268,7 @@
       validate_certs: no
     loop: [node-bd, pod-bd]
   - name: Add site BDs to the controller template
+    when: desired_state == 'present'
     mso_schema_site_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -214,6 +283,7 @@
       validate_certs: no
     loop: [node-bd, pod-bd]
   - name: Add site node BD subnet to the controller template
+    when: desired_state == 'present'
     mso_schema_site_bd_subnet:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -230,6 +300,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add site pod BD subnet to the controller template
+    when: desired_state == 'present'
     mso_schema_site_bd_subnet:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -246,6 +317,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add site BD l3outs to the controller template
+    when: desired_state == 'present'
     mso_schema_site_bd_l3out:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -261,6 +333,7 @@
       validate_certs: no
     loop: [node-bd, pod-bd]
   - name: Add AP to the controller template
+    when: desired_state == 'present'
     mso_schema_template_anp:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -273,6 +346,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add the node EPG to the controller template
+    when: desired_state == 'present'
     mso_schema_template_anp_epg:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -289,6 +363,7 @@
       use_ssl: yes
       validate_certs: no
   - name: Add the kubefed EPG to the controller template
+    when: desired_state == 'present'
     mso_schema_template_anp_epg:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -306,6 +381,7 @@
       validate_certs: no
   # Deploy policies for worker clusters
   - name: Add the worker templates to the schema
+    when: desired_state == 'present'
     mso_schema_template:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -321,6 +397,7 @@
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
   - name: Add the site to the worker templates
+    when: desired_state == 'present'
     mso_schema_site:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -350,7 +427,7 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
-    when: item[1].vrf.tenant == item[0]
+    when: (desired_state == 'present') and (item[1].vrf.tenant == item[0])
   # TBD: fix the l_3_out variable bug?
   - name: Add the l3out to the right worker templates
     mso_schema_template_l3out:
@@ -370,8 +447,9 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
-    when: item[1].l_3_out.tenant == item[0]
+    when: (desired_state == 'present') and (item[1].l_3_out.tenant == item[0])
   - name: Add BDs to the worker templates
+    when: desired_state == 'present'
     mso_schema_template_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -390,6 +468,7 @@
       validate_certs: no
     loop: '{{ worker_clusters }}'
   - name: Add site BDs to the worker templates
+    when: desired_state == 'present'
     mso_schema_site_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -404,6 +483,7 @@
       validate_certs: no
     loop: '{{ worker_clusters }}'
   - name: Add site node BD subnet to the worker templates
+    when: desired_state == 'present'
     mso_schema_site_bd_subnet:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -421,6 +501,7 @@
       validate_certs: no
     loop: '{{ worker_clusters }}'
   - name: Add site BD l3outs to the worker templates
+    when: desired_state == 'present'
     mso_schema_site_bd_l3out:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -436,6 +517,7 @@
       validate_certs: no
     loop: '{{ worker_clusters }}'
   - name: Add AP to the worker templates
+    when: desired_state == 'present'
     mso_schema_template_anp:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -449,6 +531,7 @@
       validate_certs: no
     loop: '{{ worker_clusters }}'
   - name: Add the node EPG to the worker templates
+    when: desired_state == 'present'
     mso_schema_template_anp_epg:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -467,6 +550,7 @@
     loop: '{{ worker_clusters }}'
   # Assign the kubefed contract to the EPGs
   - name: Add the consumer contract to the 2 EPGs in the controller cluster
+    when: desired_state == 'present'
     mso_schema_template_anp_epg_contract:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -486,6 +570,7 @@
       validate_certs: no
     loop: [aci-containers-nodes, '{{ controller_cluster.kubefed_epg }}']
   - name: Add the provider contract to the EPG of those workers
+    when: desired_state == 'present'
     mso_schema_template_anp_epg_contract:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -504,3 +589,44 @@
       use_ssl: yes
       validate_certs: no
     loop: '{{ worker_clusters }}'
+  - name: Deploy Common template
+    when: desired_state == 'present'
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Common
+      state: deploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+  - name: Deploy the controller templates
+    when: desired_state == 'present'
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.system_id }}-{{ controller_cluster.site }}-{{ item }}'
+      state: deploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [ "{{ tenant }}", common]
+  - name: Deploy the worker templates
+    when: desired_state == 'present'
+    ignore_errors: yes
+    mso_schema_template_deploy:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item[1].system_id }}-{{ item[1].site }}-{{ item[0] }}'
+      state: deploy
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
