@@ -8,7 +8,7 @@
     passwd: "{{ lookup('file', '/opt/ansible/mso-access/password') }}"
     schema: "mso_ansible_operator_{{ meta.name }}"
     desired_state: "{{ state }}"
-  # TBD: Take care of the delete & update case
+  # TBD: Take care of the update case
   tasks:
   - debug:
       msg: "host: {{ host }}, user: {{ user }}, pass: {{ passwd }}, tenant: {{ tenant }}"
@@ -26,7 +26,7 @@
     when: (item.site is defined) and (item.site not in site_list)
   - debug:
       msg: "sites: {{ site_list }}"
-  - name: Undeploy the Common template on all the sites
+  - name: Undeploy the Common templates on all the sites
     when: desired_state == 'absent'
     ignore_errors: yes
     mso_schema_template_deploy:
@@ -34,13 +34,15 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
-      site: '{{ item }}'
+      template: 'Common-{{ item[0] }}'
+      site: '{{ item[1] }}'
       state: undeploy
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: "{{ site_list }}"
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ site_list }}'
   - name: Undeploy the controller templates
     when: desired_state == 'absent'
     ignore_errors: yes
@@ -111,33 +113,60 @@
       use_ssl: yes
       validate_certs: no
       state: '{{ desired_state }}'
-  - name: Add the Common template to the schema
+  - name: Add the Common templates to the schema
     when: desired_state == 'present'
     mso_schema_template:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
-      tenant: "{{ tenant }}"
+      template: 'Common-{{ item }}'
+      tenant: "{{ item }}"
       state: '{{ desired_state }}'
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-  - name: Add all the sites to the Common template
+    loop: ["{{ tenant }}", common]
+  - name: Add all the sites to the Common templates
     when: desired_state == 'present'
     mso_schema_site:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      site: '{{ item }}'
-      template: Common
+      site: '{{ item[1] }}'
+      template: 'Common-{{ item[0] }}'
       state: '{{ desired_state }}'
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    loop: "{{ site_list }}"
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ site_list }}'
+  - name: Set the default vrf_list
+    set_fact:
+      vrf_list: ["{{ controller_cluster.vrf }}"]
+  - name: Set the vrf list
+    set_fact:
+      vrf_list: "{{ vrf_list + [item.vrf] }}"
+    with_items: "{{ worker_clusters }}"
+    when: (item.vrf is defined) and (item.vrf not in vrf_list)
+  - debug:
+      msg: "VRFs: {{ vrf_list }}"
+  - name: Add the VRF to the Common template if there is only one VRF totally
+    mso_schema_template_vrf:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: 'Common-{{ item }}'
+      vrf: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: ["{{ tenant }}", common]
+    when: (desired_state == 'present') and (vrf_list|length == 1) and (controller_cluster.vrf.tenant == item)
   - name: Add the ICMP filter entry to the Common template
     when: desired_state == 'present'
     mso_schema_template_filter_entry:
@@ -145,7 +174,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
+      template: 'Common-{{ tenant }}'
       filter: KubeFed
       entry: ICMP
       ethertype: ip
@@ -161,7 +190,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
+      template: 'Common-{{ tenant }}'
       filter: KubeFed
       entry: "kubeAPI-{{ item }}"
       ethertype: ip
@@ -180,7 +209,7 @@
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
+      template: 'Common-{{ tenant }}'
       contract: KubeFed
       contract_filter_type: both-way
       filter: KubeFed
@@ -216,7 +245,7 @@
       use_ssl: yes
       validate_certs: no
     loop: ["{{ tenant }}", common]
-  - name: Add the VRF to the right controller template
+  - name: Add the VRF to the right controller template for multiple VRFs
     mso_schema_template_vrf:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -229,9 +258,9 @@
       use_ssl: yes
       validate_certs: no
     loop: ["{{ tenant }}", common]
-    when: (desired_state == 'present') and (controller_cluster.vrf.tenant == item)
+    when: (desired_state == 'present') and (vrf_list|length > 1) and (controller_cluster.vrf.tenant == item)
   # TBD: fix the l_3_out variable bug?
-  - name: Add the l3out to the right controller template
+  - name: Add the l3out to the right controller template for multiple VRFs
     mso_schema_template_l3out:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -247,9 +276,25 @@
       use_ssl: yes
       validate_certs: no
     loop: ["{{ tenant }}", common]
-    when: (desired_state == 'present') and (controller_cluster.l_3_out.tenant == item)
-  - name: Add BDs to the controller template
-    when: desired_state == 'present'
+    when: (desired_state == 'present') and (vrf_list|length > 1) and (controller_cluster.l_3_out.tenant == item)
+  - name: Add the l3out to the right controller template for only one common VRf
+    mso_schema_template_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.site }}-{{ item }}'
+      l3out: '{{ controller_cluster.l_3_out.name }}'
+      vrf:
+        template: 'Common-{{ controller_cluster.vrf.tenant }}'
+        name: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: ["{{ tenant }}", common]
+    when: (desired_state == 'present') and (vrf_list|length == 1) and (controller_cluster.l_3_out.tenant == item)
+  - name: Add BDs to the controller template for multiple VRFs
     mso_schema_template_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -267,6 +312,26 @@
       use_ssl: yes
       validate_certs: no
     loop: [node-bd, pod-bd]
+    when: (desired_state == 'present') and (vrf_list|length > 1)
+  - name: Add BDs to the controller template for only one common VRF
+    mso_schema_template_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ controller_cluster.site }}-{{ tenant }}'
+      bd: 'aci-containers-{{ controller_cluster.system_id }}-{{ item }}'
+      layer2_stretch: false
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: 'Common-{{ controller_cluster.vrf.tenant }}'
+        name: '{{ controller_cluster.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: [node-bd, pod-bd]
+    when: (desired_state == 'present') and (vrf_list|length == 1)
   - name: Add site BDs to the controller template
     when: desired_state == 'present'
     mso_schema_site_bd:
@@ -412,7 +477,7 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
-  - name: Add the VRF to the right worker templates
+  - name: Add the VRF to the right worker templates for multiple VRFs
     mso_schema_template_vrf:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -427,9 +492,9 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
-    when: (desired_state == 'present') and (item[1].vrf.tenant == item[0])
+    when: (desired_state == 'present') and (vrf_list|length > 1) and (item[1].vrf.tenant == item[0])
   # TBD: fix the l_3_out variable bug?
-  - name: Add the l3out to the right worker templates
+  - name: Add the l3out to the right worker templates for multiple VRFs
     mso_schema_template_l3out:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -447,9 +512,27 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ worker_clusters }}'
-    when: (desired_state == 'present') and (item[1].l_3_out.tenant == item[0])
-  - name: Add BDs to the worker templates
-    when: desired_state == 'present'
+    when: (desired_state == 'present') and (vrf_list|length > 1) and (item[1].l_3_out.tenant == item[0])
+  - name: Add the l3out to the right worker templates for one common VRF
+    mso_schema_template_l3out:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item[1].site }}-{{ item[0] }}'
+      l3out: '{{ item[1].l_3_out.name }}'
+      vrf:
+        template: 'Common-{{ item[1].vrf.tenant }}'
+        name: '{{ item[1].vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    with_nested:
+    - ["{{ tenant }}", common]
+    - '{{ worker_clusters }}'
+    when: (desired_state == 'present') and (vrf_list|length == 1) and (item[1].l_3_out.tenant == item[0])
+  - name: Add BDs to the worker templates for multiple VRFs
     mso_schema_template_bd:
       host: "{{ host }}"
       username: "{{ user }}"
@@ -467,6 +550,26 @@
       use_ssl: yes
       validate_certs: no
     loop: '{{ worker_clusters }}'
+    when: (desired_state == 'present') and (vrf_list|length > 1)
+  - name: Add BDs to the worker templates for only one common VRF
+    mso_schema_template_bd:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: '{{ item.site }}-{{ tenant }}'
+      bd: 'aci-containers-{{ item.system_id }}-node-bd'
+      layer2_stretch: false
+      layer2_unknown_unicast: proxy
+      vrf:
+        template: 'Common-{{ item.vrf.tenant }}'
+        name: '{{ item.vrf.name }}'
+      state: present
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ worker_clusters }}'
+    when: (desired_state == 'present') and (vrf_list|length == 1)
   - name: Add site BDs to the worker templates
     when: desired_state == 'present'
     mso_schema_site_bd:
@@ -561,7 +664,7 @@
       epg: '{{ item }}'
       contract:
         schema: "{{ schema }}"
-        template: Common
+        template: 'Common-{{ tenant }}'
         name: KubeFed
         type: consumer
       state: present
@@ -581,7 +684,7 @@
       epg: aci-containers-nodes
       contract:
         schema: "{{ schema }}"
-        template: Common
+        template: 'Common-{{ tenant }}'
         name: KubeFed
         type: provider
       state: present
@@ -589,18 +692,19 @@
       use_ssl: yes
       validate_certs: no
     loop: '{{ worker_clusters }}'
-  - name: Deploy Common template
+  - name: Deploy Common templates
     when: desired_state == 'present'
     mso_schema_template_deploy:
       host: "{{ host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
       schema: "{{ schema }}"
-      template: Common
+      template: 'Common-{{ item }}'
       state: deploy
       use_proxy: no
       use_ssl: yes
       validate_certs: no
+    loop: [common, "{{ tenant }}"]
   - name: Deploy the controller templates
     when: desired_state == 'present'
     mso_schema_template_deploy:
