@@ -113,6 +113,20 @@
       use_ssl: yes
       validate_certs: no
       state: '{{ desired_state }}'
+  - name: Set the default vrf_list
+    set_fact:
+      vrf_list: ["{{ controller_cluster.vrf }}"]
+  - name: Set the vrf list
+    set_fact:
+      vrf_list: "{{ vrf_list + [item.vrf] }}"
+    with_items: "{{ worker_clusters }}"
+    when: (item.vrf is defined) and (item.vrf not in vrf_list)
+  - debug:
+      msg: "VRFs: {{ vrf_list }}"
+  - fail:
+      msg: The VRF of the worker cluster, {{ item.system_id }} at site, {{ item.site }} can not be the same as the VRF of the controller cluster
+    loop: '{{ worker_clusters }}'
+    when: (desired_state == 'present') and (vrf_list|length > 1) and (controller_cluster.vrf == item.vrf) and (controller_cluster.site != item.site)
   - name: Add the Common templates to the schema
     when: desired_state == 'present'
     mso_schema_template:
@@ -143,16 +157,6 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ site_list }}'
-  - name: Set the default vrf_list
-    set_fact:
-      vrf_list: ["{{ controller_cluster.vrf }}"]
-  - name: Set the vrf list
-    set_fact:
-      vrf_list: "{{ vrf_list + [item.vrf] }}"
-    with_items: "{{ worker_clusters }}"
-    when: (item.vrf is defined) and (item.vrf not in vrf_list)
-  - debug:
-      msg: "VRFs: {{ vrf_list }}"
   - name: Add the VRF to the Common template if there is only one VRF totally
     mso_schema_template_vrf:
       host: "{{ host }}"
