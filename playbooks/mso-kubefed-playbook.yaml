@@ -127,6 +127,19 @@
       msg: The VRF of the worker cluster, {{ item.system_id }} at site, {{ item.site }} can not be the same as the VRF of the controller cluster
     loop: '{{ worker_clusters }}'
     when: (desired_state == 'present') and (vrf_list|length > 1) and (controller_cluster.vrf == item.vrf) and (controller_cluster.site != item.site)
+  - name: Set the default system_id list
+    set_fact:
+      sys_id_list: ["{{ controller_cluster.system_id }}"]
+  - name: Set the sys_id list
+    set_fact:
+      sys_id_list: "{{ sys_id_list + [item.system_id] }}"
+    with_items: "{{ worker_clusters }}"
+    when: (item.system_id is defined) and (item.system_id not in sys_id_list)
+  - debug:
+      msg: "sys_id_list: {{ sys_id_list }}"
+  - fail:
+      msg: The system_id has to be defined and can not be the same across all the clusters
+    when: (desired_state == 'present') and (worker_clusters|length + 1 != sys_id_list|length)
   - name: Add the Common templates to the schema
     when: desired_state == 'present'
     mso_schema_template:

@@ -12,7 +12,7 @@ spec:
       tenant: NoiroMultiCluster
       name: l3out
     vrf:
-      tenant: common
+      tenant: NoiroMultiCluster
       name: K8S
     node_bd_subnet: 10.113.0.1/16
     pod_bd_subnet: 10.114.0.1/16
@@ -33,7 +33,7 @@ spec:
         tenant: NoiroMultiCluster
         name: l3out
       vrf:
-        tenant: common
+        tenant: NoiroMultiCluster
         name: K8S
       node_bd_subnet: 10.207.0.1/16
 
