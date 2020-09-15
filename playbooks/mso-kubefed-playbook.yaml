@@ -123,6 +123,17 @@
     when: (item.vrf is defined) and (item.vrf not in vrf_list)
   - debug:
       msg: "VRFs: {{ vrf_list }}"
+  # TBD
+  - name: Set the default bd dict
+    set_fact:
+      bd_dict: {controller_cluster.site: ['aci-containers-{{ controller_cluster.system_id }}-node-bd', 'aci-containers-{{ controller_cluster.system_id }}-pod-bd']}
+  - name: Set the bd dict
+    set_fact:
+      bd_dict: "{{ bd_dict | combine({item.site: ['-'.join((aci-containers, item.system_id, node-bd))]}) }}"
+    with_items: "{{ worker_clusters }}"
+    #when: (item.system_id is defined) and (aci-containers-{{ item.system_id }}-node-bd not in bd_dict[item.site])
+  - debug:
+      msg: "BDs: {{ bd_dict }}"
   - fail:
       msg: The VRF of the worker cluster, {{ item.system_id }} at site, {{ item.site }} can not be the same as the VRF of the controller cluster
     loop: '{{ worker_clusters }}'
@@ -140,6 +151,20 @@
   - fail:
       msg: The system_id has to be defined and can not be the same across all the clusters
     when: (desired_state == 'present') and (worker_clusters|length + 1 != sys_id_list|length)
+  # TBD: Delete the extra templates
+  - name: Query a schema
+    mso_schema:
+      host: "{{ host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: query_result
+  - debug:
+      var: query_result.current.templates
   - name: Add the Common templates to the schema
     when: desired_state == 'present'
     mso_schema_template:
@@ -154,6 +179,7 @@
       use_ssl: yes
       validate_certs: no
     loop: ["{{ tenant }}", common]
+  # TBD: Remove the sites from the templates
   - name: Add all the sites to the Common templates
     when: desired_state == 'present'
     mso_schema_site:
@@ -170,6 +196,7 @@
     with_nested:
     - ["{{ tenant }}", common]
     - '{{ site_list }}'
+  # TBD: Delete the extra VRFs
   - name: Add the VRF to the Common template if there is only one VRF totally
     mso_schema_template_vrf:
       host: "{{ host }}"
@@ -276,7 +303,7 @@
       validate_certs: no
     loop: ["{{ tenant }}", common]
     when: (desired_state == 'present') and (vrf_list|length > 1) and (controller_cluster.vrf.tenant == item)
-  # TBD: fix the l_3_out variable bug?
+  # TBD: remove the extra l3outs
   - name: Add the l3out to the right controller template for multiple VRFs
     mso_schema_template_l3out:
       host: "{{ host }}"
