@@ -10,39 +10,138 @@
     desiredState: 'present'
     schema: kent_kubefed
     tenant: NoiroMultiCluster
-    worker_clusters: [{site: fab1, sys_id: id1}, {site: fab1, sys_id: id11}, {site: fab2, sys_id: id2}]
+    controller_cluster: {site: Fab1, sys_id: k8s_c3f1, kubefed_epg: kubefed}
+    worker_clusters: [{site: Fab1, sys_id: k8s_c4f1}, {site: Fab2, sys_id: k8s_c2f2}]
   tasks:
+  - debug:
+      msg: "controller_cluster: {{ controller_cluster }}"
   - name: Set the default site dict
     set_fact:
-      site_dict: {'fab1': ['id1']}
+      site_sys_ids_dict: "{{ site_sys_ids_dict | default({}) | combine({controller_cluster.site: [controller_cluster.sys_id]}) }}"
+      site_bds_dict: "{{ site_bds_dict | default({}) | combine({controller_cluster.site: ['-'.join(('aci-containers', controller_cluster.sys_id, 'node-bd')), '-'.join(('aci-containers', controller_cluster.sys_id, 'pod-bd'))]}) }}"
+      site_aps_dict: "{{ site_aps_dict | default({}) | combine({controller_cluster.site: ['-'.join(('aci-containers', controller_cluster.sys_id))]}) }}"
+      epg_list: ['{{ controller_cluster.kubefed_epg }}', aci-containers-nodes]
   - debug:
-      msg: "Sites: {{ site_dict }}"
+      msg: "Sites: {{ site_sys_ids_dict }}, BDs: {{ site_bds_dict }}, EPGs: {{ epg_list }}, APs: {{ site_aps_dict }}"
   - name: Set the site dict1
     set_fact:
-      site_dict: "{{ site_dict | combine({item.site: site_dict[item.site] + [item.sys_id]}) }}"
+      site_sys_ids_dict: "{{ site_sys_ids_dict | combine({item.site: site_sys_ids_dict[item.site] + [item.sys_id]}) }}"
+      site_bds_dict: "{{ site_bds_dict | combine({item.site: site_bds_dict[item.site] + ['-'.join(('aci-containers', item.sys_id, 'node-bd'))]}) }}"
+      site_aps_dict: "{{ site_aps_dict | combine({item.site: site_aps_dict[item.site] + ['-'.join(('aci-containers', item.sys_id))]}) }}"
     with_items: "{{ worker_clusters }}"
-    when: (item.sys_id is defined) and (item.site in site_dict) and (item.sys_id not in site_dict[item.site])
+    when: (item.sys_id is defined) and (item.site in site_sys_ids_dict) and (item.sys_id not in site_sys_ids_dict[item.site])
   - name: Set the site dict2
     set_fact:
-      site_dict: "{{ site_dict | combine({item.site: [item.sys_id]}) }}"
+      site_sys_ids_dict: "{{ site_sys_ids_dict | combine({item.site: [item.sys_id]}) }}"
+      site_bds_dict: "{{ site_bds_dict | combine({item.site: ['-'.join(('aci-containers', item.sys_id, 'node-bd'))]}) }}"
+      site_aps_dict: "{{ site_aps_dict | combine({item.site: ['-'.join(('aci-containers', item.sys_id))]}) }}"
     with_items: "{{ worker_clusters }}"
-    when: (item.sys_id is defined) and (item.site not in site_dict)
+    when: (item.sys_id is defined) and (item.site not in site_sys_ids_dict)
   - debug:
-      msg: "Sites: {{ site_dict }}"
+      msg: "Sites: {{ site_sys_ids_dict }}, BDs: {{ site_bds_dict }}, APs: {{ site_aps_dict }}, EPGs: {{ epg_list }}"
+  - name: Query all APs on Fab1 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: ap_result
+  - debug:
+      msg: "ap_result: {{ ap_result }}"
+  - name: Delete extra APs on Fab1 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: "{{ item.name }}"
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ ap_result.current }}'
+    when: (ap_result is defined) and (item.name not in site_aps_dict['Fab1'])
+
+  # TBD: not done yet
+  - name: Query all EPGs on Fab1 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: ap_result
+  - debug:
+      msg: "ap_result: {{ ap_result }}"
+  - name: Delete extra APs on Fab1 template
+    mso_schema_template_anp:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      anp: "{{ item.name }}"
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ ap_result.current }}'
+    when: (ap_result is defined) and (item.name not in site_aps_dict['Fab1'])
+
+  - name: Query all BDs on Fab1 template
+    mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: bd_result
+  - debug:
+      msg: "bd_result: {{ bd_result }}"
+  - name: Delete extra BDs on Fab1 template
+    #ignore_errors: yes
+    cisco.mso.mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      bd: "{{ item.name }}"
+      #bd: test
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ bd_result.current }}'
+    when: (bd_result is defined) and (item.name not in site_bds_dict['Fab1'])
   - name: Query a schema
     mso_schema:
       host: "{{ mso_host }}"
       username: "{{ user }}"
       password: "{{ passwd }}"
-      # TBD
-      schema: mso_ansible_operator_example-kubefed
+      #schema: mso_ansible_operator_example-kubefed
+      schema: "{{ schema }}"
       state: query
       use_proxy: no
       use_ssl: yes
       validate_certs: no
-    register: query_result
+    register: schema_query_result
   - debug:
-      var: query_result.current.templates
+      var: schema_query_result.current.templates
   - name: Add a tenant
     mso_tenant:
       host: "{{ mso_host }}"
@@ -163,6 +262,36 @@
       use_proxy: no
       use_ssl: yes
       validate_certs: no
+  # TBD
+  - name: Query all BDs on Fab1 template
+    mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      state: query
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    register: bd_result
+  - debug:
+      msg: "bd_result: {{ bd_result.current }}"
+  - name: Delete extra DBs on Fab1 template
+    ignore_errors: yes
+    mso_schema_template_bd:
+      host: "{{ mso_host }}"
+      username: "{{ user }}"
+      password: "{{ passwd }}"
+      schema: "{{ schema }}"
+      template: Fab1
+      bd: "{{ item.displayName }}"
+      state: absent
+      use_proxy: no
+      use_ssl: yes
+      validate_certs: no
+    loop: '{{ bd_result.current.templates }}'
+    when: (bd_result is defined) and (item.displayName == Fab1) and (item.displayName not in site_bds_dict[Fab1])
   - name: Add BDs to Fab1 template
     mso_schema_template_bd:
       host: "{{ mso_host }}"
@@ -492,15 +621,15 @@
       use_ssl: yes
       validate_certs: no
     loop: [aci-containers-nodes, kubefed]
-  - name: Deploy schema templates
-    mso_schema_template_deploy:
-      host: "{{ mso_host }}"
-      username: "{{ user }}"
-      password: "{{ passwd }}"
-      schema: "{{ schema }}"
-      template: '{{ item }}'
-      state: deploy
-      use_proxy: no
-      use_ssl: yes
-      validate_certs: no
-    loop: [Common, Fab1, Fab2]
+ #- name: Deploy schema templates
+ #   mso_schema_template_deploy:
+ #     host: "{{ mso_host }}"
+ #     username: "{{ user }}"
+ #     password: "{{ passwd }}"
+ #     schema: "{{ schema }}"
+ #     template: '{{ item }}'
+ #     state: deploy
+ #     use_proxy: no
+ #     use_ssl: yes
+ #     validate_certs: no
+ #   loop: [Common, Fab1, Fab2]
