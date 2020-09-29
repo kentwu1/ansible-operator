@@ -3,9 +3,9 @@ kind: AciNamespace
 metadata:
   name: acins-1
 spec:
-  #epgcontractmasters: ["aci-containers-default", "aci-containers-system"]
-  epgcontractmasters: []
-  #providedcontracts: ["p2"]
-  providedcontracts: []
-  #consumedcontracts: ["c2"]
-  consumedcontracts: []
+  epgcontractmasters: ["aci-containers-default", "aci-containers-system"]
+  #epgcontractmasters: []
+  providedcontracts: ["p1"]
+  #providedcontracts: []
+  consumedcontracts: ["c1"]
+  #consumedcontracts: []

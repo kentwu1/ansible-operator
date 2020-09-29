@@ -1,7 +1,7 @@
 apiVersion: rmlab.cisco.com/v1alpha2
 kind: AciContract
 metadata:
-  name: example-acicontract
+  name: c5
 spec:
   allow_list:
     - protocol: tcp

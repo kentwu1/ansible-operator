@@ -57,8 +57,7 @@
       contract: '{{ item.fvRsProv.attributes.tnVzBrCPName }}'
       contract_type: provider
     with_items: '{{ query_result.current[0].fvAEPg.children }}'
-    when: item.fvRsProv.attributes.tnVzBrCPName not in providedContracts
-    when: (query_result.current[0].fvAEPg.children is defined) and (desiredState == 'xxxxx')
+    when: (query_result.current[0].fvAEPg.children is defined) and (desiredState == 'xxxxx') and (item.fvRsProv.attributes.tnVzBrCPName not in providedContracts)
   - name: Query all the consumed contracts to EPG
     when: desiredState == 'present'
     ignore_errors: yes
@@ -80,6 +79,24 @@
       msg: 'Consumer contract name {{ item.fvRsCons.attributes.tnVzBrCPName }}'
     with_items: '{{ query_result.current[0].fvAEPg.children }}'
     when: query_result.current[0].fvAEPg.children is defined
+  - name: Query Master EPG1 (not really working)
+    when: desiredState == 'present'
+    cisco.aci.aci_epg_to_contract_master:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      epg: '{{ epgName }}'
+      #contract_master_ap: '{{ ap }}'
+      #contract_master_epg: aci-containers-istio
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    register: query_result
+  - debug:
+      msg: '{{ query_result }}]'
   - name: Query Master EPG
     when: desiredState == 'present'
     ignore_errors: yes
@@ -93,7 +110,8 @@
       path: /api/node/class/fvRsSecInherited.json
     register: query_result
   - debug:
-      msg: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+      #msg: '/api/node/mo/{{ item.fvRsSecInherited.attributes.dn }}.json'
+      msg: '{{ item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] }}'
     with_items: '{{ query_result.imdata }}'
     when: query_result.imdata is defined
   - shell: "echo uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}/rssecInherited-[uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ item }}]"
@@ -112,12 +130,30 @@
     with_items: "{{ masterEpgs }}"
   - debug:
       msg: "{{ foo }}"
-  - name: Delete Master EPG
+  - name: Delete Master EPG 1
+    vars:
+      epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
+    cisco.aci.aci_epg_to_contract_master:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      epg: '{{ epgName }}'
+      contract_master_ap: '{{ ap }}'
+      contract_master_epg: '{{  item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: absent
+    with_items: '{{ query_result.imdata }}'
+    when: (epgPath in item.fvRsSecInherited.attributes.dn) and ( item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] not in masterEpgs)
+  - name: Delete Master EPG (keep it as a backup)
     ignore_errors: yes
     vars:
       epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
     aci_rest:
-      host: '{{ apicHost }}'
+      #host: '{{ apicHost }}'
       password: 'noir0123'
       username: 'admin'
       method: delete
@@ -128,6 +164,20 @@
     with_items: '{{ query_result.imdata }}'
     when: (epgPath in item.fvRsSecInherited.attributes.dn) and (item.fvRsSecInherited.attributes.dn not in foo)
     #when: (query_result.imdata is defined) and (desiredState == 'present')
+  - name: Configure master EPGs
+    cisco.aci.aci_epg_to_contract_master:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      epg: '{{ epgName }}'
+      contract_master_ap: '{{ ap }}'
+      contract_master_epg: test
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: present
   - name: Query entries
     when: (desiredState == 'present')
     aci_filter_entry:
@@ -156,7 +206,6 @@
   - debug:
       msg: "{{ foo1 }}"
   - name: Delete extra entries
-    when: (desiredState == 'present') and (query_result.current[0].vzFilter.children is defined)
     aci_filter_entry:
       host: '{{ apicHost }}'
       password: 'noir0123'
@@ -169,7 +218,7 @@
       use_proxy: no
       state: absent
     with_items: "{{ query_result.current[0].vzFilter.children }}"
-    when: item.vzEntry.attributes.name not in foo1
+    when: (desiredState == 'present') and (query_result.current[0].vzFilter.children is defined) and (item.vzEntry.attributes.name not in foo1)
   - name: Create entries
     when: (desiredState == 'present')
     aci_filter_entry:
