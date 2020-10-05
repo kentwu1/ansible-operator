@@ -7,14 +7,14 @@
     tenant: "kent_demo"
     ap: 'aci-containers-{{ tenant }}'
     apicHost: "10.30.120.180"
-    #masterEpgs: ['aci-containers-default', 'aci-containers-system']
-    masterEpgs: []
+    masterEpgs: ['aci-containers-default', 'aci-containers-system']
+    #masterEpgs: []
     providedContracts: ["p1", "p2"]
     consumedContracts: []
-    #allowList: [{"protocol":"tcp", "ports":{"start": "6000", "end": "6000"}},
-    #            {"protocol":"icmp", "ports":{"start": "unspecified", "end": "unspecified"}},
-    #            {"protocol":"udp", "ports":{"start": "6001", "end": "6001"}}]
-    allowList: []
+    allowList: [{"protocol":"tcp", "ports":{"start": "6000", "end": "6000"}},
+                {"protocol":"icmp", "ports":{"start": "unspecified", "end": "unspecified"}},
+                {"protocol":"udp", "ports":{"start": "6001", "end": "6001"}}]
+    #allowList: []
     desiredState: 'present'
   tasks:
   - name: Query all the provided contracts to EPG
@@ -40,6 +40,40 @@
     when: query_result.current[0].fvAEPg.children is defined
   - debug:
       var: query_result.current[0].fvAEPg.children[0].fvRsProv.attributes.tnVzBrCPName
+
+  - name: Query each provided contract to get its annotation
+    aci_epg_to_contract:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      contract: '{{ item.fvRsProv.attributes.tnVzBrCPName }}'
+      contract_type: provider
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    with_items: "{{ query_result.current[0].fvAEPg.children }}"
+    register: contract_query_result
+  - debug:
+      msg: "{{ contract_query_result }}"
+  - name: Set the contract list
+    when: desiredState == 'present'
+    set_fact:
+      foo1: '{{ providedContracts }}'
+  - debug:
+      msg: "{{ foo1 }}"
+  - name: Add the contracts not owned by us to the list
+    set_fact:
+      foo1: "{{ foo1 + [item.item.fvRsProv.attributes.tnVzBrCPName] }}"
+    with_items: "{{ contract_query_result.results }}"
+    when: (desiredState == 'present') and (contract_query_result.results is defined) and (item.item.fvRsProv.attributes.annotation != 'orchestrator:aci-ansible-operator')
+  - debug:
+      msg: "{{ foo1 }}"
+  - debug:
+      msg: "{{ providedContracts }}"
+
   - name: Delete the extra provided contracts to EPG
     #when: desiredState == 'xxxxx'
     ignore_errors: yes
@@ -130,6 +164,41 @@
     with_items: "{{ masterEpgs }}"
   - debug:
       msg: "{{ foo }}"
+
+  - name: Query each master EPG to get its annotation
+    vars:
+      epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
+    cisco.aci.aci_epg_to_contract_master:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      ap: '{{ ap }}'
+      epg: '{{ epgName }}'
+      contract_master_ap: '{{ ap }}'
+      contract_master_epg: '{{ item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] }}'
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    with_items: '{{ query_result.imdata }}'
+    when: (epgPath in item.fvRsSecInherited.attributes.dn)
+    register: master_query_result
+  - debug:
+      msg: "{{ master_query_result }}"
+  - name: Set the default list
+    set_fact:
+      foo2: []
+  - name: Set the list
+    vars:
+      epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
+    set_fact:
+      foo2: "{{ foo2 + [item.item.fvRsSecInherited.attributes.tDn.split('/')[-1][4:]] }}"
+    with_items: "{{ master_query_result.results }}"
+    when: (master_query_result.results is defined) and (epgPath in item.item.fvRsSecInherited.attributes.dn) and (item.item.fvRsSecInherited.attributes.annotation != 'orchestrator:aci-ansible-operator')
+  - debug:
+      msg: "{{ foo2 }}"
+
   - name: Delete Master EPG 1
     vars:
       epgPath: 'uni/tn-{{ tenant }}/ap-{{ ap }}/epg-{{ epgName }}'
@@ -141,7 +210,7 @@
       ap: '{{ ap }}'
       epg: '{{ epgName }}'
       contract_master_ap: '{{ ap }}'
-      contract_master_epg: '{{  item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] }}'
+      contract_master_epg: '{{ item.fvRsSecInherited.attributes.tDn.split("/")[-1][4:] }}'
       use_ssl: yes
       validate_certs: no
       use_proxy: no
@@ -174,6 +243,7 @@
       epg: '{{ epgName }}'
       contract_master_ap: '{{ ap }}'
       contract_master_epg: test
+      annotation: orchestrator:aci-ansible-operator
       use_ssl: yes
       validate_certs: no
       use_proxy: no
@@ -205,6 +275,30 @@
     with_items: "{{ allowList }}"
   - debug:
       msg: "{{ foo1 }}"
+  - name: Query each entry to get its annotation
+    aci_filter_entry:
+      host: '{{ apicHost }}'
+      password: 'noir0123'
+      username: 'admin'
+      tenant: '{{ tenant }}'
+      filter: 'default1'
+      entry: "{{ item.vzEntry.attributes.name }}"
+      use_ssl: yes
+      validate_certs: no
+      use_proxy: no
+      state: query
+    with_items: "{{ query_result.current[0].vzFilter.children }}"
+    register: entry_query_result
+  - debug:
+      msg: "{{ entry_query_result }}"
+  - name: Add the entries not owned by us to the list
+    vars:
+    set_fact:
+      foo1: "{{ foo1 + [item.item.vzEntry.attributes.name] }}"
+    with_items: "{{ entry_query_result.results }}"
+    when: (desiredState == 'present') and (entry_query_result.results is defined) and (item.item.vzEntry.attributes.annotation != 'orchestrator:aci-ansible-operator')
+  - debug:
+      msg: "{{ foo1 }}"
   - name: Delete extra entries
     aci_filter_entry:
       host: '{{ apicHost }}'
@@ -226,6 +320,7 @@
       password: 'noir0123'
       username: 'admin'
       tenant: '{{ tenant }}'
+      annotation: orchestrator:aci-ansible-operator
       filter: 'default1'
       entry: "{{ '-'.join((item.protocol, item.ports.start, item.ports.end)) }}"
       ether_type: 'ip'
